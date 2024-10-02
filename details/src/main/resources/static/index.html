@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <title>Employee Management</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!--    <link rel="icon" type="image/png" href="/favicon.png">-->
+</head>
+<body>
+<div class="container mt-5">
+    <h1>Employee Management</h1>
+    <button class="btn btn-primary" data-toggle="modal" data-target="#employeeModal" id="addEmployeeBtn">Add Employee</button>
+
+    <!-- Employee Table -->
+    <table class="table mt-3" id="employeeTable">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>DOB</th>
+            <th>Age</th>
+            <th>Salary</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody id="employeeTableBody">
+        <!-- Employee rows will be added here dynamically -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Employee Modal -->
+<div class="modal fade" id="employeeModal" tabindex="-1" role="dialog" aria-labelledby="employeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="employeeModalLabel">Employee Details</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="employeeForm" action="/employees" method="POST">
+                    <input type="hidden" id="employeeId"> <!-- Hidden input for the employee ID -->
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" class="form-control" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dob">Date of Birth</label>
+                        <input type="date" class="form-control" id="dob" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="age">Age</label>
+                        <input type="number" class="form-control" id="age" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="salary">Salary</label>
+                        <input type="number" class="form-control" id="salary" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select class="form-control" id="status">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveEmployeeBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        loadEmployees();
+
+        // Load employees from API
+        function loadEmployees() {
+            $.ajax({
+                url: "/api/employees",
+                method: "GET",
+                success: function (data) {
+                    const employeeRows = data.map(employee => renderEmployeeRow(employee)).join('');
+                    $('#employeeTableBody').html(employeeRows);
+                },
+                error: function (xhr) {
+                    console.error("Failed to load employees", xhr.responseText);
+                }
+            });
+        }
+
+        function renderEmployeeRow(employee) {
+            const age = calculateAge(new Date(employee.dob)); // Calculate age
+            return `
+                <tr>
+                    <td>${employee.id}</td>
+                    <td>${employee.name}</td>
+                    <td>${employee.email}</td>
+                    <td>${employee.dob}</td>
+                    <td>${age}</td>
+                    <td>${employee.salary}</td>
+                    <td>${employee.status ? 'Active' : 'Inactive'}</td>
+                    <td>
+                        <button class="btn btn-info" onclick="editEmployee(${employee.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteEmployee(${employee.id})">Delete</button>
+                    </td>
+                </tr>`;
+        }
+
+        // Calculate age from date of birth
+        function calculateAge(dob) {
+            const diff = Date.now() - dob.getTime();
+            const ageDate = new Date(diff);
+            return Math.abs(ageDate.getUTCFullYear() - 1970);
+        }
+
+        // Handle save employee (add or update)
+        $("#saveEmployeeBtn").click(function () {
+            const employeeId = $("#employeeId").val();
+            const employeeData = {
+                name: $("#name").val(),
+                email: $("#email").val(),
+                dob: $("#dob").val(),
+                age: $("#age").val(),
+                salary: $("#salary").val(),
+                status: $("#status").val() === "true"
+            };
+
+            if (employeeId) {
+                // Update existing employee
+                $.ajax({
+                    url: `/api/employees/${employeeId}`,
+                    method: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify(employeeData),
+                    success: function () {
+                        loadEmployees();
+                        $('#employeeModal').modal('hide');
+                        $("#employeeForm")[0].reset();
+                    },
+                    error: function (xhr) {
+                        console.error("Failed to update employee:", xhr.responseText);
+                    }
+                });
+            } else {
+                // Create new employee
+                $.ajax({
+                    url: '/api/employees',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(employeeData),
+                    success: function (newEmployee) {
+                        loadEmployees();
+                        $('#employeeModal').modal('hide');
+                        $("#employeeForm")[0].reset();
+                    },
+                    error: function (xhr) {
+                        alert("Failed to save employee: " + xhr.responseText);
+                    }
+                });
+            }
+        });
+    });
+
+    // Edit employee
+    function editEmployee(id) {
+        $.get(`/api/employees/${id}`, function (employee) {
+            $("#employeeId").val(employee.id); // Set hidden employee ID
+            $("#name").val(employee.name);
+            $("#email").val(employee.email);
+            $("#dob").val(employee.dob);
+            $("#age").val(employee.age);
+            $("#salary").val(employee.salary);
+            $("#status").val(employee.status);
+            $('#employeeModal').modal('show');
+        });
+    }
+
+    // Delete employee
+    function deleteEmployee(id) {
+        if (confirm("Are you sure you want to delete this employee?")) {
+            $.ajax({
+                url: `/api/employees/${id}`,
+                method: 'DELETE',
+                success: function () {
+                    loadEmployees();  // Reload employee list after deletion
+                },
+                error: function (xhr) {
+                    console.error("Failed to delete employee:", xhr.responseText);
+                    alert("Error deleting employee: " + xhr.status);
+                }
+            });
+        }
+    }
+    $("#saveEmployeeBtn").click(function (event) {
+    event.preventDefault(); // Prevent default form submission
+
+    const employeeId = $("#employeeId").val();
+    const employeeData = {
+        name: $("#name").val(),
+        email: $("#email").val(),
+        dob: $("#dob").val(),
+        age: $("#age").val(),
+        salary: $("#salary").val(),
+        status: $("#status").val() === "true"
+    };
+
+    if (employeeId) {
+        // Update existing employee
+        $.ajax({
+            url: `/api/employees/${employeeId}`,
+            method: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(employeeData),
+            success: function () {
+                loadEmployees();
+                $('#employeeModal').modal('hide');
+                $("#employeeForm")[0].reset();
+            },
+            error: function (xhr) {
+                console.error("Failed to update employee:", xhr.responseText);
+            }
+        });
+    } else {
+        // Create new employee
+        $.ajax({
+            url: '/api/employees',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(employeeData),
+            success: function (newEmployee) {
+                loadEmployees();
+                $('#employeeModal').modal('hide');
+                $("#employeeForm")[0].reset();
+            },
+            error: function (xhr) {
+                console.error("Failed to save employee:", xhr.responseText);
+                alert("Failed to save employee: " + xhr.responseText);
+            }
+        });
+    }
+});
+    $.ajax({
+    url: '/api/employees',
+    method: 'POST',
+    contentType: 'application/json',
+    data: JSON.stringify(employeeData),
+    success: function(newEmployee) {
+        loadEmployees();
+        $('#employeeModal').modal('hide');
+        $("#employeeForm")[0].reset();
+    },
+    error: function(xhr) {
+        alert("Failed to save employee: " + xhr.responseText);
+    }
+});
+$.ajax({
+    url: "/api/employees",
+    method: "GET",
+    success: function (data) {
+        console.log("Received data:", data); // Log the data
+        const employeeRows = data.map(employee => renderEmployeeRow(employee)).join('');
+        $('#employeeTableBody').html(employeeRows);
+    },
+    error: function (xhr) {
+        console.error("Failed to load employees", xhr.responseText);
+    }
+});
+
+
+</script>
+
+<!--    // Bootstrap and JS for Modal-->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
